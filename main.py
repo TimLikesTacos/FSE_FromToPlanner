@@ -1,13 +1,14 @@
-# This is a sample Python script.
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import mysql.connector as mysql
+from mysql.connector import errorcode
 import requests
 import xml.etree.ElementTree as ElementTree
 import re
 import pandas as pd
 from io import StringIO
+from sqlalchemy import create_engine, text
+
+import db
 
 ACCESSCODE = "1D593BCBB727A29D"
 
@@ -160,51 +161,56 @@ def get_flight_log_info(youraccesscode, pilotaccesscode, lastID):
     return entries
 
 def update_flight_logs (db, youraccesscode, pilotaccesscode):
+    engine = create_engine("mysql+mysqlconnector://tree:password@localhost/fse", echo=True)
     cursor = db.cursor()
     #get last entry
-    sql = f'''SELECT id FROM flightlog INNER JOIN pilot ON flightlog.pilot = pilot.name WHERE pilot.readaccesskey="{pilotaccesscode} ORDER BY id DESC LIMIT 1"'''
-
-    cursor.execute(sql)
-    res = cursor.fetchall()
     lastID = 0
-    if res:
-        lastID = res.id
-    print('res:', res)
-
-#     # get all flight logs from the last on in the database
-#     entries = get_flight_log_info(youraccesscode, pilotaccesscode, lastID)
-#     for entry in entries:
-#         sql = f'''INSERT INTO flightlog (id, type, time, distance, pilot, serial_number, aircraft, make_model, \
-# from_airport, to_airport, total_engine_time, flight_time, group_name, income, pilot_fee, crew_cost, booking_fee, bonus, fuel_cost,\
-# gcf, rental_price, rental_type, rental_units, rental_cost) VALUES ('{entry["id"]}',\
-# '{entry["type"]}', '{entry["time"]}', '{entry["distance"]}', '{entry["pilot"]}', '{entry["serial_number"]}', \
-# '{entry["aircraft"]}', '{entry["make_model"]}', '{entry["from_airport"]}', '{entry["to_airport"]}', '{entry["total_engine_time"]}', \
-# '{entry["flight_time"]}', '{entry["group_name"]}', '{entry["income"]}', '{entry["pilot_fee"]}', '{entry["crew_cost"]}', '{entry["booking_fee"]}',\
-# '{entry["bonus"]}', '{entry["fuel_cost"]}', '{entry["gcf"]}', '{entry["rental_price"]}', '{entry["rental_type"]}', '{entry["rental_units"]}', \
-# '{entry["rental_cost"]}') '''
-#         print(sql)
-#         cursor.execute(sql)
-    url = f'https://server.fseconomy.net/data?userkey={youraccesscode}&format=csv&query=flightlogs&search=id&readaccesskey={pilotaccesscode}&fromid={lastID}'
-    csv = requests.get(url);
-    df = pd.read_csv(StringIO(csv.text))
-    df.rename(columns={"To": "ToAirport", "From" : "FromAirport"})
-    for row in df.itertuples():
-        sql = pd.to_sql(row)
+    try:
+        sql = f'''SELECT id FROM flightlog INNER JOIN pilot ON flightlog.pilot = pilot.name WHERE pilot.readaccesskey='{pilotaccesscode}' ORDER BY id DESC LIMIT 1'''
         print(sql)
 
+        cursor.execute(sql)
+        res = cursor.fetchall()
+        print('res:', res)
+        if res:
+            lastID = res[0]
 
-    db.commit()
+    except:
+        # lastID already 0
+        pass
+
+    # Get data from FSEconomy in CSV format
+    url = f'https://server.fseconomy.net/data?userkey={youraccesscode}&format=csv&query=flightlogs&search=id&readaccesskey={pilotaccesscode}&fromid={lastID}'
+    csv = requests.get(url);
+    # Import it into a Pandas dataframe. Sets the Id number to be the index
+    df = pd.read_csv(StringIO(csv.text), index_col=0)
+    # Remove unnamed and useless column at the end of the import
+    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+
+    # Add to the database.  This also creates the table if needed
+    with engine.connect() as conn:
+        # Check if the table is there
+        try:
+            s = text("SELECT :item FROM flightlog ")
+            conn.execute(s, {"item": 'pilot'})
+            df.to_sql('flightlog', con=engine, if_exists='append', method='multi')
+            # TODO: Set foriegn key relationships for on-delete and on-update
+            # TODO: Set Id to be unique
+
+        except:
+            print("does not exist")
+            df.to_sql('flightlog', con=engine, if_exists='fail', method='multi')
 
 
 def main():
 
     db = dbconnect()
     print("DB: ", db)
-    #update_pilot_summary(db, ACCESSCODE, ACCESSCODE)
+    update_pilot_summary(db, ACCESSCODE, ACCESSCODE)
     update_flight_logs(db, ACCESSCODE, ACCESSCODE)
 
 
 if __name__ == '__main__':
     main()
-
+    #db.engine()
 
