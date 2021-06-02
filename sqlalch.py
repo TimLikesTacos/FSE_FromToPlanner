@@ -14,6 +14,10 @@ import xml.etree.ElementTree as ElementTree
 
 Base = declarative_base();
 
+class Db:
+    def __init__(self):
+        pass
+
 def hhmm_to_dec(value):
     time = value.split(':')
     value = float(time[0]) + float(time[1]) / 60
@@ -153,6 +157,24 @@ def update_pilot_summary(youraccesscode, pilotsaccesscode):
 
     session.add(stat)
     session.commit()
+
+def OTO_import_airports():
+
+    df = pd.read_csv("./icaodata.csv")
+    # Remove unnamed and useless column at the end of the import
+    # df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+
+    # Add to the database.  This also creates the table if needed
+    engine = create_engine("mysql+mysqlconnector://tree:password@localhost/fse2", echo=True, echo_pool=True)
+    df.to_sql('airport', con=engine, if_exists='fail', method='multi')
+    # with engine.connect() as conn:
+    #     # Check if the table is there
+    #     try:
+    #         df.to_sql('flightlog', con=engine, if_exists='fail', method='multi')
+    #
+    #     except:
+    #         # Table exists
+    #         print("ICAO table already exists")
 
 def create_db():
 

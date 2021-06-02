@@ -21,7 +21,8 @@ def main():
     # print("DB: ", database)
     sqlalch.create_db()
     sqlalch.update_pilot_summary(ACCESSCODE, ACCESSCODE)
-    sqlalch.get_flight_log_info(ACCESSCODE, ACCESSCODE, 0)
+    #sqlalch.get_flight_log_info(ACCESSCODE, ACCESSCODE, 0)
+    #sqlalch.OTO_import_airports()
 
 
 
