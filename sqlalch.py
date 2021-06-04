@@ -1,22 +1,165 @@
 import csv
 
-from sqlalchemy import create_engine, Column, DateTime, Integer, TIMESTAMP, String, DECIMAL, VARCHAR, ForeignKey, TIME
+from sqlalchemy import create_engine, Column, DateTime, Float, Integer, TIMESTAMP, String, DECIMAL, VARCHAR, ForeignKey, \
+    PrimaryKeyConstraint, TIME, select, MetaData
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func, text
 from sqlalchemy.exc import IntegrityError as IntegrityError
 import requests
 import re
 from csv import DictReader
+import concurrent.futures
 from io import StringIO
 import pandas as pd
 import math
 import xml.etree.ElementTree as ElementTree
+from time import sleep
+from os import cpu_count
 
-Base = declarative_base();
+Base = declarative_base()
+
+# MAX_DISTANCE_FOR_CALCS = 500; # nautical miles
+#
+# def chunked_calc_distance_bearing(port1, chunk):
+#     values = []
+#     for port2 in chunk:
+#         distance, bearing = calc_distance_bearing(port1, port2)
+#         if distance < MAX_DISTANCE_FOR_CALCS:
+#             values.append(AirportDistance(port1.icao, port2.icao, distance, bearing))
+#
+#     return values
+#
+#
+# def calc_distance_bearing(port1, port2):
+#     if port1 == port2:
+#         return 0, 0
+#     # Calculate distance in nautical miles using great circles, or the Haversine equation.
+#
+#     R = 3440;
+#     phi1 = port1.lat * math.pi / 180
+#     phi2 = port2.lat * math.pi / 180
+#     deltaphi = (port2.lat - port1.lat) * math.pi / 180
+#     deltalambda = (port2.lon - port1.lon) * math.pi / 180
+#
+#     a = math.sin(deltaphi / 2) * math.sin(deltaphi / 2) + math.cos(phi1) * math.cos(phi2) * \
+#         math.sin(deltalambda / 2) * math.sin(deltalambda / 2)
+#     d = 2 * R * math.asin(math.sqrt(a))
+#
+#     # Calculate bearing from _initial_ location, port1
+#     y = math.sin(deltalambda) * math.cos(phi2);
+#     x = math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(deltalambda);
+#     theta = math.atan2(y, x);
+#     brng = (theta * 180 / math.pi + 360) % 360; # in degrees
+#     return d, brng
+
+def init (db):
+    engine = create_engine("mysql+mysqlconnector://tree:password@localhost/fse2")
+    Base.metadata.create_all(engine)
+    return engine
 
 class Db:
+
+
     def __init__(self):
-        pass
+        self.engine = init(self)
+        session = sessionmaker(bind=self.engine)
+        self.session = session()
+        self.base = declarative_base()
+        self.base.metadata.create_all(self.engine)
+
+        ## The following section is for One-Time-Only creation of database
+        # Create airport database if needed
+        if not self.session.query(Airport).first():
+            print("Importing airports from local csv file")
+            self.__OTO_import_airports()
+
+            print("Airport import complete")
+
+        else:
+            print("Airport tables already exist")
+
+
+    def __OTO_import_airports(self):
+
+        df = pd.read_csv("./icaodata.csv")
+        # Replace 'nan' with None
+        df = df.where(df.notnull(), None)
+
+        for item in df.iterrows():
+            airport = Airport(data=item)
+            self.session.add(airport)
+
+        self.session.commit()
+
+
+
+    # def __OTO_calculate_airport_distances(self):
+    #
+    #
+    #     with self.engine.connect() as conn:
+    #         stmt = select(Airport)
+    #         airports = conn.execute(stmt).fetchall()
+    #
+    #     # For each airport, find the distance and bearing to each other airport
+    #     count = 0;
+    #     MAX_WORKERS = cpu_count() - 1
+    #
+    #     # airports = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    #     chunk_size = math.ceil(len(airports) / MAX_WORKERS)
+    #     executor = concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS)
+    #
+    #     for a in airports:
+    #         futures = []
+    #         for i in range(MAX_WORKERS):
+    #             chunk = airports[(i * chunk_size): ((i + 1) * chunk_size)]
+    #             futures.append(executor.submit(chunked_calc_distance_bearing, a, chunk))
+    #
+    #         for chunk in concurrent.futures.as_completed(futures):
+    #             results = chunk.result()
+    #             if len(results) > 0:
+    #                 self.session.add_all(results)
+    #
+    #         self.session.commit()
+
+        # for port1 in airports:
+        #     count += 1
+        #     futures = [None] * len(airports)
+        #     inside_count = 0
+        #     for port2 in airports:
+        #         args = [port1, port2, self.session]
+        #         futures[inside_count] = executor.map(calc_and_add(port1, port2), airports, chunksize=10)
+        #         inside_count += 1
+        #     if count % 10 == 0:
+        #         print(count)
+        #     concurrent.futures.wait(futures)
+        #     self.session.commit()
+
+
+
+        # for port1 in airports:
+        #     count += 1
+        #
+        #
+        #
+        #     # for port2 in airports:
+        #     #     if port1 == port2:
+        #     #         continue
+        #     #
+        #     #     (distance, bearing) = calculate_distance(port1, port2)
+        #     #     if distance < self.MAX_DISTANCE_FOR_CALCS:
+        #     #         the_vector = AirportDistance(port1.icao, port2.icao, distance, bearing)
+        #     #         self.session.add(the_vector)
+        #
+        #     self.session.commit()
+        #     if count % 10 == 0:
+        #         print(count)
+
+
+
+
+
+
+
 
 def hhmm_to_dec(value):
     time = value.split(':')
@@ -52,6 +195,26 @@ class PilotStat(Base):
                 time = value.split(':')
                 value = float(time[0]) + float(time[1]) / 60
             setattr(self, key, value)
+
+class Airport(Base):
+    __tablename__ = 'airport'
+
+    icao = Column(String(5), primary_key=True)
+    lat = Column(Float)
+    lon = Column(Float)
+    type = Column(String(40))
+    size = Column(Integer)
+    name = Column(String(100))
+    city = Column(String(40))
+    state = Column(String(40))
+    country = Column(String(40))
+
+    def __init__(self, **kwargs):
+
+        series = kwargs['data'][1]
+        for key, value in series.items():
+            setattr(self, key, value)
+
 
 
 class FlightLog(Base):
@@ -158,23 +321,7 @@ def update_pilot_summary(youraccesscode, pilotsaccesscode):
     session.add(stat)
     session.commit()
 
-def OTO_import_airports():
 
-    df = pd.read_csv("./icaodata.csv")
-    # Remove unnamed and useless column at the end of the import
-    # df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-
-    # Add to the database.  This also creates the table if needed
-    engine = create_engine("mysql+mysqlconnector://tree:password@localhost/fse2", echo=True, echo_pool=True)
-    df.to_sql('airport', con=engine, if_exists='fail', method='multi')
-    # with engine.connect() as conn:
-    #     # Check if the table is there
-    #     try:
-    #         df.to_sql('flightlog', con=engine, if_exists='fail', method='multi')
-    #
-    #     except:
-    #         # Table exists
-    #         print("ICAO table already exists")
 
 def create_db():
 
