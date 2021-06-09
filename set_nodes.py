@@ -1,17 +1,7 @@
 from sqlalchemy import create_engine, Column, DateTime, Float, Integer, TIMESTAMP, String, DECIMAL, VARCHAR, ForeignKey, \
     PrimaryKeyConstraint, TIME, select, MetaData
-from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy.sql import func, text
-from sqlalchemy.exc import IntegrityError as IntegrityError
-import requests
-import re
-from csv import DictReader
 import concurrent.futures
-from io import StringIO
-import pandas as pd
 import math
-import xml.etree.ElementTree as ElementTree
-from time import sleep
 from os import cpu_count
 from sqlalch import Airport, Base
 from sys import stdout
@@ -34,15 +24,6 @@ class AirportDistance(Base):
         self.bearing = bear
 
 
-class AirportsWithin5(AirportDistance):
-    pass
-
-class AirportsWithin10(AirportDistance):
-    pass
-
-class AirportsWithin25(AirportDistance):
-    pass
-
 def chunk_and_range(db):
     with db.engine.connect() as conn:
 
@@ -50,23 +31,23 @@ def chunk_and_range(db):
         airports = conn.execute(stmt).fetchall()
 
     # For each airport, find the distance and bearing to each other airport
-    MAX_WORKERS = cpu_count() - 1
+    MAX_WORKERS = cpu_count() - 2
 
-    # airports = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    chunk_size = math.ceil(len(airports) / MAX_WORKERS)
+    # CPU intensive, split airports amoungst other processes
+    chunk_size = math.ceil(len(airports) / (MAX_WORKERS * 2))
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS)
     air_total = len(airports)
     last_percent = -1
-    for a in airports:
-        futures = []
-        for i in range(MAX_WORKERS):
-            chunk = airports[(i * chunk_size): ((i + 1) * chunk_size)]
-            futures.append(executor.submit(chunked_calc_distance_bearing, a, chunk))
 
-        for chunk in concurrent.futures.as_completed(futures):
-            results = chunk.result()
-            if len(results) > 0:
-                db.session.add_all(results)
+    air1futures = []
+    for i in range(MAX_WORKERS * 2):
+        chunk = airports[(i * chunk_size): ((i + 1) * chunk_size)]
+        air1futures.append(executor.submit(chunked_calc_distance_bearing, chunk, airports))
+
+    for chunk in concurrent.futures.as_completed(air1futures):
+        results = chunk.result()
+        if len(results) > 0:
+            db.session.add_all(results)
 
         db.session.commit()
         with db.engine.connect() as conn:
@@ -78,20 +59,22 @@ def chunk_and_range(db):
                 stdout.write('\rCalculating airport distances: {}% complete'.format(last_percent))
                 stdout.flush()
 
-def chunked_calc_distance_bearing(port1, chunk):
-    values = []
-    for port2 in chunk:
-        if port1 == port2:
-            continue
-        distance, bearing = calc_distance_bearing(port1, port2)
-        if distance < 5:
-            values.append(AirportsWithin5(port1.icao, port2.icao, distance, bearing))
-        elif distance < 10:
-            values.append(AirportsWithin10(port1.icao, port2.icao, distance, bearing))
-        elif distance < 25:
-            values.append(AirportsWithin25(port1.icao, port2.icao, distance, bearing))
+def chunked_calc_distance_bearing(chunk, airports):
 
-    return values
+    chunk_values = []
+    for port1 in chunk:
+        values = []
+        for port2 in airports:
+            if port1 == port2:
+                continue
+            distance, bearing = calc_distance_bearing(port1, port2)
+            values.append({'1': port1.icao, '2': port2.icao, 'dist': distance, 'brng': bearing})
+        # Only keep the top ten results
+        sort = sorted(values, key= lambda i: i['dist'])
+        for air in sort[0:10]:
+            chunk_values.append(AirportDistance(air['1'], air['2'], air['dist'], air['brng']))
+
+    return chunk_values
 
 
 def calc_distance_bearing(port1, port2):
@@ -120,9 +103,13 @@ def OTO_calculate_airport_distances(db):
 
     db.base.metadata.create_all(db.engine)
     with db.engine.connect() as conn:
+        print("Checking if airport distances present in database", end='\r')
         exist = conn.execute(select(AirportDistance)).fetchone()
         if not exist:
+            print("Distances are not present.  Performing calculations.  This will take some time.")
             chunk_and_range(db)
+        else:
+            print("Airport distance have been calculated and present in database")
 
 
 

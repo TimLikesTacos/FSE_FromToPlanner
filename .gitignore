@@ -1,3 +1,7 @@
 venv
 .idea
 config.py
+*.csv
+*.png
+!example.png
+/__pycache__

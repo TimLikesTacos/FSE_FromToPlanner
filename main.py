@@ -7,14 +7,15 @@ import re
 import pandas as pd
 from io import StringIO
 from sqlalchemy import create_engine, text
+import matplotlib.pyplot as plt
 
 import sqlalch
 import set_nodes
-from db import Db
+import config
 from sqlalch import create_db
+import flightpath
+from filegetter import FileGetter
 
-
-ACCESSCODE = "1D593BCBB727A29D"
 
 def main():
 
@@ -32,6 +33,37 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
-    #db.engine()
+    db = sqlalch.Db()
+    airports = db.session.query(sqlalch.Airport).filter(sqlalch.Airport.type != 'water')
+    _kpdx = db.session.query(sqlalch.Airport).get('kpdx')
+    _8ka = db.session.query(sqlalch.Airport).get('8ka')
+
+    fp = flightpath.FlightPath(_8ka, _kpdx)
+
+
+    airports_in_path = fp.airports_in(airports)
+
+    for port in sorted(airports_in_path, key=airports_in_path.get):
+        dist = airports_in_path[port]
+        plt.plot(port.lon, port.lat, marker='o')
+
+    fg = FileGetter()
+    fg.get_assignments(airports_in_path)
+    # x, y = fp.poly.exterior.xy
+    # cx, cy = fp.path.xy
+    # plt.plot(y, x)
+    # plt.plot(cy, cx)
+    #
+    # if fp.start_icao:
+    #     plt.plot(fp.start_lon, fp.start_lat, marker='o', label='some')
+    #     plt.text(fp.start_lon, fp.start_lat, fp.start_icao)
+    #
+    # if fp.end_icao:
+    #     plt.plot(fp.end_lon, fp.end_lat, marker='o', label='some')
+    #     plt.text(fp.end_lon, fp.end_lat, fp.end_icao)
+    #
+    # print(len(sorted_airports))
+    # plt.show()
+
+
 
