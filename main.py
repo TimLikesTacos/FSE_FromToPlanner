@@ -15,6 +15,7 @@ import config
 from sqlalch import create_db
 import flightpath
 from filegetter import FileGetter
+import assignment_planner
 
 
 def main():
@@ -48,7 +49,11 @@ if __name__ == '__main__':
         plt.plot(port.lon, port.lat, marker='o')
 
     fg = FileGetter()
-    fg.get_assignments(airports_in_path)
+    # Using csv
+    #assignments = fg.get_assignments(airports_in_path)
+    # Using the database
+    assignments = fg.get_to_assignments(airports_in_path, db)
+    # lp = FromToPlanner(fp, assignments)
     # x, y = fp.poly.exterior.xy
     # cx, cy = fp.path.xy
     # plt.plot(y, x)

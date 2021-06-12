@@ -1,6 +1,6 @@
 import csv
 
-from sqlalchemy import create_engine, Column, DateTime, Float, Integer, TIMESTAMP, String, DECIMAL, VARCHAR, ForeignKey, \
+from sqlalchemy import create_engine, Column, DateTime, Float, Boolean, Integer, TIMESTAMP, String, DECIMAL, VARCHAR, ForeignKey, \
     PrimaryKeyConstraint, TIME, select, MetaData
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func, text
@@ -13,6 +13,7 @@ from io import StringIO
 import pandas as pd
 import math
 import util
+
 import xml.etree.ElementTree as ElementTree
 from time import sleep
 from os import cpu_count
@@ -30,10 +31,10 @@ class Db:
 
     def __init__(self):
         self.engine = init(self)
-        session = sessionmaker(bind=self.engine)
-        self.session = session()
-        self.base = declarative_base()
-        self.base.metadata.create_all(self.engine)
+        self.sessionmaker = sessionmaker(bind=self.engine)
+        self.session = self.sessionmaker()
+        # self.base = declarative_base()
+        # self.base.metadata.create_all(self.engine)
 
         ## The following section is for One-Time-Only creation of database
         # Create airport database if needed
@@ -49,7 +50,7 @@ class Db:
 
     def __OTO_import_airports(self):
 
-        df = pd.read_csv("./icaodata.csv")
+        df = pd.read_csv("./csv/icaodata.csv")
         # Replace 'nan' with None
         df = df.where(df.notnull(), None)
 
@@ -113,11 +114,52 @@ class Airport(Base):
         for key, value in series.items():
             setattr(self, key, value)
 
-class Assignment:
+class AirportDistance(Base):
+    __tablename__ = 'airport_distance'
+
+    from_icao = Column(String(5), primary_key=True)
+    to_icao = Column(String(5), primary_key=True)
+    distance = Column(Float)
+    bearing = Column(Float)
+
+    def __init__ (self, froma, toa, dist, bear):
+        self.from_icao = froma
+        self.to_icao = toa
+        self.distance = dist
+        self.bearing = bear
+
+    def airports(self):
+        return ({'from': self.from_icao, 'to': self.to_icao})
+
+class Assignment(Base):
+    __tablename__ =  'assignment'
+
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(TIMESTAMP, server_default=func.now())
+    location = Column(String(5))
+    to_icao = Column(String(40))
+    from_icao = Column(String(40))
+    amount = Column(Integer)
+    unit_type = Column(String(100))
+    commodity = Column(String(100))
+    pay = Column(DECIMAL(13,2))
+    expires = Column(String(100))
+    expire_date_time = Column(DateTime)
+    express = Column(Boolean)
+    pt_assignment = Column(Boolean)
+    type = Column(String(40))
+    aircraft_id = Column(Integer)
+
     def __init__ (self, **kwargs):
         series = kwargs['data'][1]
         for key, value in series.items():
             setattr(self, util.to_snake(key), value)
+
+# class ToAssignment(Assignment):
+#     __tablename__ = 'to_assignment'
+#
+# class FromAssignment(Assignment):
+#     __tablename__ = 'from_assignment'
 
 class FlightLog(Base):
     __tablename__ = 'flightlog'

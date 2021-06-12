@@ -3,6 +3,8 @@ from shapely.geometry import Polygon, Point, LineString
 from shapely import speedups
 import matplotlib.pyplot as plt
 import math
+import SupportClasses.FromAP as FromAP
+from sqlalch import AirportDistance, Db
 
 
 class FlightPath:
@@ -82,7 +84,10 @@ class FlightPath:
 
         self.width = nm_m(width)
 
+        self.airports_in_fp = None
         self.path, self.poly = calc_polygon(self)
+
+        #self.db = Db()
 
 
     def get_poly(self):
@@ -91,15 +96,42 @@ class FlightPath:
     def calc_dist_from_start (self, airport):
         return self.geod.InverseLine(self.start_lat, self.start_lon, airport.lat, airport.lon).s13
 
-    def airports_in(self, airports):
+    def calc_between_airports(self, port1, port2):
+        return self.geod.InverseLine(port1.lat, port1.lon, port2.lat, port2.lon).s13
+
+    def airports_in(self, airports=None):
+        if airports is None:
+            return self.airports_in_fp
         inside = {}
         for airport in airports:
             if self.poly.contains(Point(airport.lat, airport.lon)):
                 dist = self.calc_dist_from_start(airport)
                 inside[airport] = dist
-
+        self.airports_in_fp = inside
         return inside
 
+    def calculate_airport_distances(self, db=None):
+
+
+        self.airport_distances = []
+        if db is None:
+            # Calculate ranges for each airport in the flightpath
+            for port1 in self.airports_in_fp:
+                d1 = FromAP()
+                for port2 in self.airports_in_fp:
+                    if port1 == port2:
+                        continue
+                    dist = self.calc_between_airports(port1, port2)
+                    d1.append(port2.icao, dist)
+                self.airport_distances.append(d1)
+
+
+        else:
+            session = db.sessionmaker()
+            self.airport_distances = session.query(AirportDistance)\
+                .filter(AirportDistance.from_icao.in_(self.airports_in_fp),
+                        AirportDistance.to_icao.in_(self.airports_in_fp))
+            need_to_calc = set(self.airports_in_fp) - set(self.airport_distances['from']))
     def print(self):
         x, y = self.poly.exterior.xy
         cx, cy = self.path.xy
