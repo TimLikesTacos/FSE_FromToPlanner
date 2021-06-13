@@ -1,12 +1,24 @@
+from sqlalch import Airport, Assignment, AirportDistance
+from SupportClasses.leg import Leg, room_avail
 
-from sqlalch import Airport, Assignment
 
 class Planner:
-    def __init__ (self, flightpath, assignments):
+
+    def __init__(self, flightpath, weight_capacity, passenger_capacity, max_leg):
+        # value used by FSE for the weight of a passenger, in kg
         self.flightpath = flightpath
-        # self.fromassignments = assignments['from']
-        # self.toassignments = assignments['to']
-        self.assignments = assignments
+        self.weightcap = weight_capacity
+        self.passcap = passenger_capacity
+        self.max_leg = max_leg
+        self.assignments = self.filter_assignments()
+
+
+    def filter_assignments(self):
+        assign = filter(
+            lambda a: self.flightpath.calc_between_airports(a.from_airport, a.to_airport).distance < self.max_leg and
+                      room_avail(self.weightcap, self.passcap, a), self.flightpath.assignments)
+
+        return list(assign)
 
     # class FromAP:
     #     def __init__(self, from_icao):
@@ -33,21 +45,22 @@ class Planner:
     #         else:
     #             raise StopIteration
 
+
 # Calculates best trips from Point A to Point B flights, such as when travelling long distances.
-class FromToPlanner (Planner):
+class FromToPlanner(Planner):
 
+    def __init__(self, flightpath, weight_capacity, passenger_capacity, max_leg):
+        super(FromToPlanner, self).__init__(flightpath, weight_capacity, passenger_capacity, max_leg)
+        self.distance_from_start = sorted(
+            [self.flightpath.calc_between_airports(self.flightpath.from_airport, x.from_airport) for x in self.assignments],
+            key = lambda a: a.distance)
 
-    def __init__(self, assignments):
-        super(self, assignments)
-        self.assignments_from_to_within_fp = self.__calculateFromTo()
-        self.distances = self.__calculateDistances()
+        # self.best_deal = self.calc_greedy()
 
-    # Filters the assignments so that every origin and destination are within the flightpath
-    def __calculateFromTo(self):
-        airport_titles = [a.icao for a in self.flightpath.airports_in_fp]
-
-        self.assignments = list(
-            filter(lambda assign: True if assign.to_icao in airport_titles and assign.from_icao in airport_titles else False, self.fromassignments))
-        return self.assignments
-
+    # Gets the best using greedy method (largest payout takes priority)
+    def calc_greedy(self):
+        highest_pay_list = sorted(self.assignments, key=lambda p: p.pay, reverse=True)
+        while len(highest_pay_list) > 0:
+            top_job = highest_pay_list.pop(0)
+            print(top_job.pay)
 

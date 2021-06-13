@@ -2,7 +2,7 @@ import csv
 
 from sqlalchemy import create_engine, Column, DateTime, Float, Boolean, Integer, TIMESTAMP, String, DECIMAL, VARCHAR, ForeignKey, \
     PrimaryKeyConstraint, TIME, select, MetaData
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.sql import func, text
 from sqlalchemy.exc import IntegrityError as IntegrityError
 import requests
@@ -38,14 +38,14 @@ class Db:
 
         ## The following section is for One-Time-Only creation of database
         # Create airport database if needed
-        if not self.session.query(Airport).first():
-            print("Importing airports from local csv file")
-            self.__OTO_import_airports()
+        # if not self.session.query(Airport).first():
+        #     print("Importing airports from local csv file")
+        #     self.__OTO_import_airports()
 
-            print("Airport import complete")
-
-        else:
-            print("Airport tables already exist")
+        #     print("Airport import complete")
+        #
+        # else:
+        #     print("Airport tables already exist")
 
 
     def __OTO_import_airports(self):
@@ -99,6 +99,7 @@ class Airport(Base):
     __tablename__ = 'airport'
 
     icao = Column(String(5), primary_key=True)
+    timestamp = Column(TIMESTAMP, server_default=func.now())
     lat = Column(Float)
     lon = Column(Float)
     type = Column(String(40))
@@ -117,10 +118,15 @@ class Airport(Base):
 class AirportDistance(Base):
     __tablename__ = 'airport_distance'
 
-    from_icao = Column(String(5), primary_key=True)
-    to_icao = Column(String(5), primary_key=True)
+    from_icao = Column(String(5), ForeignKey('airport.icao'), primary_key=True)
+    to_icao = Column(String(5), ForeignKey('airport.icao'), primary_key=True)
+    timestamp = Column(TIMESTAMP, server_default=func.now())
     distance = Column(Float)
     bearing = Column(Float)
+
+    # Relationships
+    to_airport = relationship("Airport", foreign_keys=[to_icao])
+    from_airport = relationship("Airport", foreign_keys=[from_icao])
 
     def __init__ (self, froma, toa, dist, bear):
         self.from_icao = froma
@@ -137,8 +143,8 @@ class Assignment(Base):
     id = Column(Integer, primary_key=True)
     timestamp = Column(TIMESTAMP, server_default=func.now())
     location = Column(String(5))
-    to_icao = Column(String(40))
-    from_icao = Column(String(40))
+    to_icao = Column(String(40), ForeignKey('airport.icao'))
+    from_icao = Column(String(40), ForeignKey('airport.icao'))
     amount = Column(Integer)
     unit_type = Column(String(100))
     commodity = Column(String(100))
@@ -149,6 +155,11 @@ class Assignment(Base):
     pt_assignment = Column(Boolean)
     type = Column(String(40))
     aircraft_id = Column(Integer)
+
+    # Relationships
+    to_airport = relationship("Airport", foreign_keys=[to_icao])
+    from_airport = relationship("Airport", foreign_keys=[from_icao])
+
 
     def __init__ (self, **kwargs):
         series = kwargs['data'][1]
@@ -172,8 +183,8 @@ class FlightLog(Base):
     serial_number = Column(Integer, nullable=False)
     aircraft = Column(VARCHAR(250), nullable=False)
     make_model = Column(VARCHAR(250), nullable=False)
-    to_airport = Column(VARCHAR(40))
-    from_airport = Column(VARCHAR(40))
+    to_icao = Column(VARCHAR(40), ForeignKey('airport.icao'))
+    from_icao = Column(VARCHAR(40), ForeignKey('airport.icao'))
     total_engine_time = Column(DECIMAL(13,2), nullable=False)
     flight_time = Column(DECIMAL(13,2), nullable=False)
     group_name = Column(VARCHAR(250))
@@ -188,6 +199,10 @@ class FlightLog(Base):
     rental_type = Column(VARCHAR(250))
     rental_units = Column(TIME)
     rental_cost = Column(DECIMAL(13,2))
+
+    # Relationships
+    to_airport = relationship("Airport", foreign_keys=[to_icao])
+    from_airport = relationship("Airport", foreign_keys=[from_icao])
 
     def __init__ (self, inputs):
         self.id = inputs[0]
