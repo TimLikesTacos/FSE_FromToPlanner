@@ -6,6 +6,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.sql import func, text
 from sqlalchemy.exc import IntegrityError as IntegrityError
 import requests
+from geographiclib.geodesic import Geodesic
 import re
 from csv import DictReader
 import concurrent.futures
@@ -19,6 +20,7 @@ from time import sleep
 from os import cpu_count
 
 Base = declarative_base()
+
 
 
 def init (db):
@@ -156,21 +158,33 @@ class Assignment(Base):
     type = Column(String(40))
     aircraft_id = Column(Integer)
 
+
     # Relationships
     to_airport = relationship("Airport", foreign_keys=[to_icao])
     from_airport = relationship("Airport", foreign_keys=[from_icao])
+    dist_bear = relationship("AirportDistance", viewonly=True, foreign_keys=[from_icao, to_icao],
+                             primaryjoin="and_(Assignment.to_icao==AirportDistance.to_icao, Assignment.from_icao==AirportDistance.from_icao)")
+
 
 
     def __init__ (self, **kwargs):
         series = kwargs['data'][1]
         for key, value in series.items():
             setattr(self, util.to_snake(key), value)
+        # geod = Geodesic.WGS84
+        # path = geod.InverseLine(self.from_airport.lat, self.from_airport.lon,
+        #                                     self.to_airport.lat, self.to_airport.lon)
+        # bearing = path.Position(0, Geodesic.STANDARD | Geodesic.LONG_UNROLL)['azi2']
+        # self.dist_bear = AirportDistance(self.from_icao, self.to_icao, path.s13 / float(1852), bearing)
 
-# class ToAssignment(Assignment):
-#     __tablename__ = 'to_assignment'
-#
-# class FromAssignment(Assignment):
-#     __tablename__ = 'from_assignment'
+    def __format__(self, format_spec):
+        return f'{"": {format_spec}}Assignment\n' \
+               f'{"": {format_spec}}From: {self.from_icao}, To: {self.to_icao}\n' \
+               f'{"": {format_spec}}Unit Type:{self.unit_type}\n' \
+               f'{"": {format_spec}}Amount: {self.amount}\n' \
+               f'{"": {format_spec}}Pay:{self.pay}'
+
+
 
 class FlightLog(Base):
     __tablename__ = 'flightlog'

@@ -1,4 +1,6 @@
 from sqlalch import Assignment
+from util import log
+
 
 
 WEIGHT_OF_PASSENGER = 77   # kilograms
@@ -18,19 +20,45 @@ def room_avail(payloadcap, passcap, assignment: Assignment) -> bool:
         return True
     
 class Leg:
-    def __init__(self, depart, land, passcap, payloadcap, assignments: [Assignment] = None):
-        self.depart = depart
-        self.land = land
+    def __init__(self, passcap, payloadcap, assignments: [Assignment] = None, **kwargs):
+        if kwargs.get('depart'):
+            self.depart = kwargs['depart']
+        else:
+            self.depart = None
+
+        if kwargs.get('land'):
+            self.land = kwargs['land']
+        else:
+            self.land = None
+
         self.passcap = passcap
         self.payloadcap = payloadcap    # kilograms
         self.assignments = assignments  # kilograms
         self.current_payload = 0
         self.current_pax = 0
 
-        for a in assignments:
-            successful = self.add_assignment(a)
-            if not successful:
-                raise ValueError('Assignments exceed passenger / weight capacity')
+        if assignments:
+            for a in assignments:
+                successful = self.add_assignment(a)
+                if not successful:
+                    raise ValueError('Assignments exceed passenger / weight capacity')
+        else:
+            self.assignments = []
+
+    def __format__(self, format_spec):
+        the_str = f'{"": {format_spec}}Leg\n' \
+                  f'{"": {format_spec}}Depart: {self.depart.icao}\n{"": {format_spec}}Land: {self.land.icao}\n' \
+                  f'{"": {format_spec}}Number of Passengers: {self.current_pax}' \
+                  f'\n{"": {format_spec}}Payload: {self.current_payload}'
+        if len(format_spec) > 1 and format_spec[0] == '<':
+            justify = int(format_spec[1:])
+        else:
+            justify = 0
+        justify += 4
+        for assignment in self.assignments:
+            the_str += f'\n{assignment:{f"<{justify}"}}'
+
+        return the_str
 
     # Adds cargo load to payload, if capable.  Returns true if within capacity, false if not.
     def add_cargo(self, cargo_weight):
@@ -84,6 +112,7 @@ class Leg:
             weight_to_add = assignment.amount * WEIGHT_OF_PASSENGER
             if self.current_payload + weight_to_add > self.payloadcap or \
                     self.current_pax + assignment.amount > self.passcap:
+                log.debug(f'Insufficent capacity: {self.current_pax, self.current_payload}')
                 return False
 
             return True
@@ -91,3 +120,22 @@ class Leg:
             if self.current_payload + assignment.amount > self.payloadcap:
                 return False
             return True
+
+    def set_destination_to_shortest(self):
+        if self.assignments is None:
+            return self
+        if len(self.assignments) == 0:
+            self.land = self.depart
+            return self
+        shortest = sorted(self.assignments, key=lambda a: a.dist_bear.distance)[0]
+        self.land = shortest.to_airport
+        return self
+
+    def land_disembark(self):
+        new_leg = Leg(self.passcap, self.payloadcap, depart=self.land)
+        # Transfer assignments that do not terminate at the previous leg arrival airport
+        for a in self.assignments:
+            if a.to_airport != self.land:
+                new_leg.add_assignment(a)
+
+        return new_leg

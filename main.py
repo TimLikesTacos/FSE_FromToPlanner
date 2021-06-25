@@ -37,9 +37,9 @@ if __name__ == '__main__':
 
     fp = flightpath.FlightPath('8ka', 'kpdx', exclude='water')
     fp.add_assignments()
-    res = assignment_planner.FromToPlanner(fp, 224, 2, 200)
-    # fp.plot(plt, include_airports=True)
-    # plt.show()
+    plan = assignment_planner.FromToPlanner(fp, 224, 2)
+    print(f'{plan}')
+
 
 
 

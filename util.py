@@ -1,5 +1,8 @@
 import re
+import logging
 
+logging.basicConfig(level='DEBUG')
+log = logging.getLogger(__name__)
 
 def to_snake(before):
     return re.sub(r'(?<!^)(?=[A-Z])', '_', before).lower()

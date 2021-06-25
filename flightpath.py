@@ -9,6 +9,7 @@ import sqlalchemy.sql.expression
 from filegetter import FileGetter
 
 
+
 class FlightPath:
     # Nautical miles to meters
     def nm_m(self, nautical_miles):
