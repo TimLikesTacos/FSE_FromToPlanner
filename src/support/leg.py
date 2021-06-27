@@ -1,5 +1,5 @@
-from sqlalch import Assignment
-from util import log
+from src.support.sqlalch import Assignment
+from src.support.util import log
 
 
 
@@ -127,10 +127,14 @@ class Leg:
         if len(self.assignments) == 0:
             self.land = self.depart
             return self
-        shortest = sorted(self.assignments, key=lambda a: a.dist_bear.distance)[0]
+
+        _sorted = sorted(self.assignments, key=lambda a: a.dist_bear.distance)
+        shortest = _sorted[0]
         self.land = shortest.to_airport
         return self
 
+    # Creates a new leg and deep copies all assignments except those whose destination
+    # was the landing location for the previous leg
     def land_disembark(self):
         new_leg = Leg(self.passcap, self.payloadcap, depart=self.land)
         # Transfer assignments that do not terminate at the previous leg arrival airport

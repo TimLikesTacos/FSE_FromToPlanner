@@ -1,7 +1,7 @@
 import re
 import logging
 
-logging.basicConfig(level='DEBUG')
+logging.basicConfig(level='WARNING')
 log = logging.getLogger(__name__)
 
 def to_snake(before):

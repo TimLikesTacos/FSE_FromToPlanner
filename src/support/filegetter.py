@@ -2,10 +2,10 @@ from io import StringIO
 
 import csv
 import requests
-from sqlalch import Airport, Assignment
+from src.support.sqlalch import Airport, Assignment
 from pathlib import Path
 import config
-import util
+import src.support.util as util
 import os
 import errno
 from datetime import datetime, timedelta
@@ -28,7 +28,7 @@ class FileGetter:
     # Creates a ./csv directory to hold csv files if does not exist
     def __create_csv_dir(self):
         self.assignments = []
-        self.__CSV_DIR = './csv/'
+        self.__CSV_DIR = '../../csv/'
         try:
             os.makedirs(self.__CSV_DIR)
         except OSError as e:
@@ -61,7 +61,7 @@ class FileGetter:
         assignment_query = assignment_query[1:]
 
         url = f'https://server.fseconomy.net/data?userkey={config.ACCESSCODE}&format=csv&query=icao&search=jobs{direction}&icaos={assignment_query}'
-        return self.__get_dataframe(url, 'assignment', 12, db, Assignment)
+        return self.__get_dataframe(url, 'assignment', 0, db, Assignment)
 
     def __get_file_add_db(self, url, str_objects, db, class_type, hours=24, **kwargs):
         need_to_download = True
@@ -81,6 +81,7 @@ class FileGetter:
                 else:
                     # Clear assignments
                     session.query(class_type).delete()
+                    session.commit()
 
         except:
             print('No entries in the database.')
@@ -110,6 +111,7 @@ class FileGetter:
                 session.add(assign)
 
             session.commit()
+            session.flush()
             return df
 
 

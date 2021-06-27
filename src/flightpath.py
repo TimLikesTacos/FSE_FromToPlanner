@@ -1,12 +1,9 @@
 from geographiclib.geodesic import Geodesic
 from shapely.geometry import Polygon, Point, LineString
 from shapely import speedups
-import matplotlib.pyplot as plt
 import math
-import SupportClasses.FromAP as FromAP
-from sqlalch import Airport, AirportDistance, Db, Assignment
-import sqlalchemy.sql.expression
-from filegetter import FileGetter
+from src.support.sqlalch import Airport, AirportDistance, Db, Assignment
+from src.support.filegetter import FileGetter
 
 
 
@@ -54,11 +51,11 @@ class FlightPath:
                 a = center_path.Position(distance, Geodesic.STANDARD | Geodesic.LONG_UNROLL)['azi2'] + offset
                 return a
 
-            left_start = self.geod.Direct(self.from_airport.lat, self.from_airport.lon, get_bearing_with_offset(0, -115), self.width)
-            left_end = self.geod.Direct(self.to_airport.lat, self.to_airport.lon, get_bearing_with_offset(center_path.s13, -65),
+            left_start = self.geod.Direct(self.from_airport.lat, self.from_airport.lon, get_bearing_with_offset(0, -90), self.width)
+            left_end = self.geod.Direct(self.to_airport.lat, self.to_airport.lon, get_bearing_with_offset(center_path.s13, -90),
                                         self.width)
-            right_start = self.geod.Direct(self.from_airport.lat, self.from_airport.lon, get_bearing_with_offset(0, 115), self.width)
-            right_end = self.geod.Direct(self.to_airport.lat, self.to_airport.lon, get_bearing_with_offset(center_path.s13, 65),
+            right_start = self.geod.Direct(self.from_airport.lat, self.from_airport.lon, get_bearing_with_offset(0, 90), self.width)
+            right_end = self.geod.Direct(self.to_airport.lat, self.to_airport.lon, get_bearing_with_offset(center_path.s13, 90),
                                     self.width)
 
             left_line = self.geod.InverseLine(left_start['lat2'], left_start['lon2'], left_end['lat2'], left_end['lon2'])
@@ -145,35 +142,39 @@ class FlightPath:
     #         if self.poly.contains(Point(airport.lat, airport.lon)):
     #
 
-    def calculate_airport_distances(self, db=None):
-        self.airport_distances = []
-        if db is None:
-            # Calculate ranges for each airport in the flightpath
-            for port1 in self.airports_in_fp:
-                d1 = FromAP()
-                for port2 in self.airports_in_fp:
-                    if port1 == port2:
-                        continue
-                    dist = self.calc_between_airports(port1, port2)
-                    d1.append(port2.icao, dist)
-                self.airport_distances.append(d1)
-
-
-        else:
-            session = db.sessionmaker()
-            self.airport_distances = session.query(AirportDistance)\
-                .filter(AirportDistance.from_icao.in_(self.airports_in_fp),
-                        AirportDistance.to_icao.in_(self.airports_in_fp))
-            need_to_calc = set(self.airports_in_fp) - set(self.airport_distances['from'])
+    # def calculate_airport_distances(self, db=None):
+    #     self.airport_distances = []
+    #     if db is None:
+    #         # Calculate ranges for each airport in the flightpath
+    #         for port1 in self.airports_in_fp:
+    #             d1 = FromAP()
+    #             for port2 in self.airports_in_fp:
+    #                 if port1 == port2:
+    #                     continue
+    #                 dist = self.calc_between_airports(port1, port2)
+    #                 d1.append(port2.icao, dist)
+    #             self.airport_distances.append(d1)
+    #
+    #
+    #     else:
+    #         session = db.sessionmaker()
+    #         self.airport_distances = session.query(AirportDistance)\
+    #             .filter(AirportDistance.from_icao.in_(self.airports_in_fp),
+    #                     AirportDistance.to_icao.in_(self.airports_in_fp))
+    #         need_to_calc = set(self.airports_in_fp) - set(self.airport_distances['from'])
 
 
     def add_assignments(self):
         self.filegetter.update_to_assignments(self.airports, self.db)
+        self.session = self.db.sessionmaker()
         assignments = self.session.query(Assignment).all()
 
         # At this point, this is all assignments TO airports in the FP.  There may be some that are not in the flight path.
 
         self.assignments = [assign for assign in assignments if assign.from_icao in self.airport_names]
+        for a in self.assignments:
+          if a.dist_bear is None:
+                self.calc_between_airports(a.from_airport, a.to_airport)
 
 
 

@@ -1,30 +1,26 @@
-import csv
+
 
 from sqlalchemy import create_engine, Column, DateTime, Float, Boolean, Integer, TIMESTAMP, String, DECIMAL, VARCHAR, ForeignKey, \
-    PrimaryKeyConstraint, TIME, select, MetaData
+     TIME
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
-from sqlalchemy.sql import func, text
-from sqlalchemy.exc import IntegrityError as IntegrityError
+from sqlalchemy.sql import func
+
 import requests
-from geographiclib.geodesic import Geodesic
-import re
-from csv import DictReader
-import concurrent.futures
 from io import StringIO
 import pandas as pd
 import math
-import util
+import src.support.util as util
+import config
 
 import xml.etree.ElementTree as ElementTree
-from time import sleep
-from os import cpu_count
+
 
 Base = declarative_base()
 
 
 
 def init (db):
-    engine = create_engine("mysql+mysqlconnector://tree:password@localhost/fse")
+    engine = create_engine(f"mysql+mysqlconnector://{config.mysql_username}:{config.mysql_password}@{config.mysql_database}")
     Base.metadata.create_all(engine)
     return engine
 
@@ -35,19 +31,6 @@ class Db:
         self.engine = init(self)
         self.sessionmaker = sessionmaker(bind=self.engine)
         self.session = self.sessionmaker()
-        # self.base = declarative_base()
-        # self.base.metadata.create_all(self.engine)
-
-        ## The following section is for One-Time-Only creation of database
-        # Create airport database if needed
-        # if not self.session.query(Airport).first():
-        #     print("Importing airports from local csv file")
-        #     self.__OTO_import_airports()
-
-        #     print("Airport import complete")
-        #
-        # else:
-        #     print("Airport tables already exist")
 
 
     def __OTO_import_airports(self):

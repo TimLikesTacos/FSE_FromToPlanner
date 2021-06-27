@@ -1,8 +1,5 @@
-from sqlalch import Airport, Assignment, AirportDistance
-from SupportClasses.leg import Leg, room_avail
-from itertools import takewhile
-from copy import deepcopy
-from util import log
+from src.support.leg import Leg, room_avail
+from src.support.util import log
 
 
 class __Planner:
