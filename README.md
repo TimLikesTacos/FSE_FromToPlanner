@@ -2,7 +2,7 @@
 
 ## Intro
 This is a basic flight planner when travelling from Point A to Point B 
-in FSEconomy and your favority flight simulator.  **This project was solely
+in FSEconomy and your favorite flight simulator.  **This project was solely
 to practise Python, SQLAlchemy ORM database modeling, and a simple greedy algorithm** for finding
 the assignments to pick up along the way.  For this situation, it is inefficient
 to use a database to store things such as assignments, but again, this was just practice.  
@@ -11,13 +11,13 @@ This is not the most efficient, or optimal, solution.  Use with discretion.
 
 ### Overview
 Two main classes for this project.  First one is `Flightpath` which takes as parameters the 'PointA'
- and the 'Point B', and the amount of nautical miles left and right of the direct path to allow for finding other
-airports with assignments.  `Flightpath` allows exclusion of types of airports in FSE, such as water using the 
-Key work argument of `exclude` in a list or single string.  For example:
+ and the 'Point B' locations, along with the amount of nautical miles left and right of the direct path to allow for finding other
+airports with assignments.  `Flightpath` allows exclusion of different types of airports in FSE, such as water airports, using the 
+Keyword argument of `exclude` in a list or single string.  For example:
 `exclude=['water', 'military']` or `exclude='water'`  
   
 `Flightpath` uses ellipsoid calculations using the latitude and longitude of the airports
-to create the shortest path.  For long distances, this will resemble an arc.  
+to create the shortest path.  For long distances, this will resemble a great cirlce arc.  
   
 The other class is `FromToPlanner`.  This takes as parameters the `Flightpath`, along with the weight capacity
 and passenger capacity of the plane you intend to fly.  This class uses a 
